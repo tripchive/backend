@@ -1,13 +1,11 @@
 from fastapi import FastAPI
 
-app = FastAPI()
+from app.lifespan import lifespan
 
 
-@app.get("/")
-async def read_root():
-    return {"Hello": "World"}
+def create_app() -> FastAPI:
+    app = FastAPI(lifespan=lifespan)
+    return app
 
 
-@app.get("/items/{item_id}")
-async def read_item(item_id: int, q: str | None = None):
-    return {"item_id": item_id, "q": q}
+app = create_app()
