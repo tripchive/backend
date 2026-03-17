@@ -14,8 +14,8 @@ pub struct User {
 }
 
 impl User {
-    pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>> {
-        let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
+    pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<Self>> {
+        let user = sqlx::query_as::<_, Self>("SELECT * FROM users WHERE email = $1")
             .bind(email)
             .fetch_optional(pool)
             .await?;
@@ -27,8 +27,8 @@ impl User {
         pool: &PgPool,
         provider: &str,
         provider_id: &str,
-    ) -> Result<Option<User>> {
-        let user = sqlx::query_as::<_, User>(
+    ) -> Result<Option<Self>> {
+        let user = sqlx::query_as::<_, Self>(
             "SELECT * FROM users WHERE auth_provider = $1 AND provider_id = $2",
         )
         .bind(provider)
@@ -43,8 +43,8 @@ impl User {
         pool: &PgPool,
         email: &str,
         password_hash: &str,
-    ) -> Result<User> {
-        let user = sqlx::query_as::<_, User>(
+    ) -> Result<Self> {
+        let user = sqlx::query_as::<_, Self>(
             "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING *",
         )
         .bind(email)
@@ -60,8 +60,8 @@ impl User {
         provider: &str,
         provider_id: &str,
         email: Option<&str>,
-    ) -> Result<User> {
-        let user = sqlx::query_as::<_, User>(
+    ) -> Result<Self> {
+        let user = sqlx::query_as::<_, Self>(
             "INSERT INTO users (email, auth_provider, provider_id) VALUES ($1, $2, $3) \
              ON CONFLICT (auth_provider, provider_id) DO UPDATE SET email = EXCLUDED.email \
              RETURNING *",

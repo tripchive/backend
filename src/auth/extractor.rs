@@ -25,6 +25,6 @@ impl FromRequestParts<SharedState> for AuthUser {
                 .map_err(|_| AuthError::MissingToken)?;
 
         let claims = jwt::decode_token(bearer.token(), &state.config.jwt_secret)?;
-        Ok(AuthUser(claims.sub))
+        Ok(Self(claims.sub))
     }
 }

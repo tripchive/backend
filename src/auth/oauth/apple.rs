@@ -39,7 +39,9 @@ fn generate_client_secret(config: &AppleConfig) -> Result<String> {
         iss: config.team_id.clone(),
         sub: config.client_id.clone(),
         aud: "https://appleid.apple.com".to_string(),
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
         iat: now.timestamp() as usize,
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
         exp: (now + chrono::Duration::days(180)).timestamp() as usize,
     };
 

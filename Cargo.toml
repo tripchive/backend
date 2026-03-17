@@ -2,6 +2,12 @@
 name = "tripchive-backend"
 version = "0.1.0"
 edition = "2024"
+description = "Backend API for Tripchive transit journey tracker"
+license = "MIT"
+repository = "https://github.com/tripchive/backend"
+readme = "README.md"
+keywords = ["transit", "tracking", "api"]
+categories = ["web-programming"]
 
 [dependencies]
 axum = "0.8"
@@ -21,3 +27,6 @@ oauth2 = { version = "5.0.0", features = ["reqwest"] }
 reqwest = { version = "0.12", features = ["json"] }
 axum-extra = { version = "0.12.5", features = ["typed-header"] }
 
+[lints.clippy]
+multiple_crate_versions = "allow"
+cargo_common_metadata = "allow"

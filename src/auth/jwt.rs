@@ -9,6 +9,11 @@ pub struct Claims {
 }
 
 pub fn create_token(user_id: i64, secret: &str, expiration_hours: u64) -> Result<String> {
+    #[allow(
+        clippy::cast_sign_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap
+    )]
     let exp = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::hours(expiration_hours as i64))
         .expect("valid timestamp")

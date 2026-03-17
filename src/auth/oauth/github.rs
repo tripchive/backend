@@ -52,7 +52,7 @@ pub async fn exchange_code(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    Ok(token.access_token().secret().to_string())
+    Ok(token.access_token().secret().clone())
 }
 
 pub async fn fetch_user_info(
