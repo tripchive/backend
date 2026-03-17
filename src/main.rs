@@ -5,7 +5,12 @@ use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::CorsLayer;
 use tracing::info;
 
+mod auth;
 mod config;
+mod dto;
+mod errors;
+mod models;
+mod routes;
 
 #[tokio::main]
 async fn main() {
@@ -21,11 +26,19 @@ async fn main() {
         .await
         .expect("failed to connect to database");
 
-    sqlx::migrate!().run(&pool).await.expect("failed to run migrations");
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("failed to run migrations");
 
-    let state = Arc::new(crate::config::AppState { pool, config });
+    let state = Arc::new(crate::config::AppState {
+        pool,
+        config,
+        http_client: reqwest::Client::new(),
+    });
 
     let app = Router::new()
+        .merge(routes::router())
         .layer(CorsLayer::permissive())
         .with_state(state);
 

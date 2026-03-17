@@ -17,4 +17,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 thiserror = "2"
 tracing = "0.1.44"
 tracing-subscriber = "0.3.22"
+oauth2 = { version = "5.0.0", features = ["reqwest"] }
+reqwest = { version = "0.12", features = ["json"] }
+axum-extra = { version = "0.12.5", features = ["typed-header"] }
 

@@ -1,0 +1,180 @@
+use axum::{
+    Json, Router,
+    extract::{Query, State},
+    response::Redirect,
+    routing::{get, post},
+};
+
+use crate::{
+    auth::{jwt, oauth, password},
+    config::SharedState,
+    dto::auth::{LoginRequest, OAuthCallbackParams, RegisterRequest, TokenResponse},
+    errors::{Result, auth::AuthError},
+    models::user::User,
+};
+
+pub fn router() -> Router<SharedState> {
+    Router::new()
+        .route("/register", post(register))
+        .route("/login", post(login))
+        .route("/google", get(google_redirect))
+        .route("/google/callback", get(google_callback))
+        .route("/github", get(github_redirect))
+        .route("/github/callback", get(github_callback))
+        .route("/apple", get(apple_redirect))
+        .route("/apple/callback", post(apple_callback))
+}
+
+async fn register(
+    State(state): State<SharedState>,
+    Json(body): Json<RegisterRequest>,
+) -> Result<Json<TokenResponse>> {
+    if User::find_by_email(&state.pool, &body.email)
+        .await?
+        .is_some()
+    {
+        return Err(AuthError::AccountAlreadyExists.into());
+    }
+
+    let hash = password::hash_password(&body.password)?;
+    let user = User::create_email_user(&state.pool, &body.email, &hash).await?;
+    let token = jwt::create_token(
+        user.id,
+        &state.config.jwt_secret,
+        state.config.jwt_expiration_hours,
+    )?;
+
+    Ok(Json(TokenResponse {
+        access_token: token,
+    }))
+}
+
+async fn login(
+    State(state): State<SharedState>,
+    Json(body): Json<LoginRequest>,
+) -> Result<Json<TokenResponse>> {
+    let user = User::find_by_email(&state.pool, &body.email)
+        .await?
+        .ok_or(AuthError::InvalidCredentials)?;
+
+    if user.auth_provider != "email" {
+        return Err(AuthError::InvalidCredentials.into());
+    }
+
+    let hash = user.password_hash.ok_or(AuthError::InvalidCredentials)?;
+    if !password::verify_password(&body.password, &hash)? {
+        return Err(AuthError::InvalidCredentials.into());
+    }
+
+    let token = jwt::create_token(
+        user.id,
+        &state.config.jwt_secret,
+        state.config.jwt_expiration_hours,
+    )?;
+
+    Ok(Json(TokenResponse {
+        access_token: token,
+    }))
+}
+
+async fn google_redirect(State(state): State<SharedState>) -> Result<Redirect> {
+    let client = oauth::google::build_client(&state.config.google)?;
+    let (url, _csrf_token) = oauth::google::get_authorize_url(&client);
+
+    Ok(Redirect::temporary(&url))
+}
+
+async fn google_callback(
+    State(state): State<SharedState>,
+    Query(params): Query<OAuthCallbackParams>,
+) -> Result<Json<TokenResponse>> {
+    let client = oauth::google::build_client(&state.config.google)?;
+    let access_token =
+        oauth::google::exchange_code(&client, &state.http_client, params.code).await?;
+    let google_user = oauth::google::fetch_user_info(&state.http_client, &access_token).await?;
+
+    let user = User::upsert_oauth_user(
+        &state.pool,
+        "google",
+        &google_user.id,
+        Some(&google_user.email),
+    )
+    .await?;
+    let token = jwt::create_token(
+        user.id,
+        &state.config.jwt_secret,
+        state.config.jwt_expiration_hours,
+    )?;
+
+    Ok(Json(TokenResponse {
+        access_token: token,
+    }))
+}
+
+async fn github_redirect(State(state): State<SharedState>) -> Result<Redirect> {
+    let client = oauth::github::build_client(&state.config.github)?;
+    let (url, _csrf_token) = oauth::github::get_authorize_url(&client);
+
+    Ok(Redirect::temporary(&url))
+}
+
+async fn github_callback(
+    State(state): State<SharedState>,
+    Query(params): Query<OAuthCallbackParams>,
+) -> Result<Json<TokenResponse>> {
+    let client = oauth::github::build_client(&state.config.github)?;
+    let access_token =
+        oauth::github::exchange_code(&client, &state.http_client, params.code).await?;
+    let github_user = oauth::github::fetch_user_info(&state.http_client, &access_token).await?;
+
+    let user = User::upsert_oauth_user(
+        &state.pool,
+        "github",
+        &github_user.id.to_string(),
+        github_user.email.as_deref(),
+    )
+    .await?;
+    let token = jwt::create_token(
+        user.id,
+        &state.config.jwt_secret,
+        state.config.jwt_expiration_hours,
+    )?;
+
+    Ok(Json(TokenResponse {
+        access_token: token,
+    }))
+}
+
+async fn apple_redirect(State(state): State<SharedState>) -> Result<Redirect> {
+    let client = oauth::apple::build_client(&state.config.apple)?;
+    let (url, _csrf_token) = oauth::apple::get_authorize_url(&client);
+
+    Ok(Redirect::temporary(&url))
+}
+
+async fn apple_callback(
+    State(state): State<SharedState>,
+    axum::Form(params): axum::Form<OAuthCallbackParams>,
+) -> Result<Json<TokenResponse>> {
+    let id_token =
+        oauth::apple::exchange_code(&state.config.apple, &state.http_client, params.code).await?;
+    let apple_user =
+        oauth::apple::decode_id_token(&id_token, &state.config.apple, &state.http_client).await?;
+
+    let user = User::upsert_oauth_user(
+        &state.pool,
+        "apple",
+        &apple_user.id,
+        apple_user.email.as_deref(),
+    )
+    .await?;
+    let token = jwt::create_token(
+        user.id,
+        &state.config.jwt_secret,
+        state.config.jwt_expiration_hours,
+    )?;
+
+    Ok(Json(TokenResponse {
+        access_token: token,
+    }))
+}
