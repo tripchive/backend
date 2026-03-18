@@ -1,3 +1,4 @@
+pub mod csrf;
 pub mod extractor;
 pub mod jwt;
 pub mod oauth;

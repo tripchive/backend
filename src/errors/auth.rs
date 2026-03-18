@@ -1,3 +1,4 @@
+use axum::http::StatusCode;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -13,4 +14,19 @@ pub enum AuthError {
 
     #[error("Missing authentication token")]
     MissingToken,
+
+    #[error("CSRF token mismatch")]
+    CsrfMismatch,
+}
+
+impl AuthError {
+    pub const fn status_code(&self) -> StatusCode {
+        match self {
+            Self::InvalidCredentials | Self::InvalidToken | Self::MissingToken => {
+                StatusCode::UNAUTHORIZED
+            }
+            Self::AccountAlreadyExists => StatusCode::CONFLICT,
+            Self::CsrfMismatch => StatusCode::BAD_REQUEST,
+        }
+    }
 }

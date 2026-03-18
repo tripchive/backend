@@ -55,11 +55,27 @@ pub async fn exchange_code(
     Ok(token.access_token().secret().clone())
 }
 
+async fn fetch_primary_email(
+    http_client: &reqwest::Client,
+    access_token: &str,
+) -> Result<Option<String>> {
+    let emails: Vec<GitHubEmail> = http_client
+        .get("https://api.github.com/user/emails")
+        .bearer_auth(access_token)
+        .header("User-Agent", "tripchive")
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    Ok(emails.into_iter().find(|e| e.primary).map(|e| e.email))
+}
+
 pub async fn fetch_user_info(
     http_client: &reqwest::Client,
     access_token: &str,
 ) -> Result<GitHubUser> {
-    let mut user = http_client
+    let user = http_client
         .get("https://api.github.com/user")
         .bearer_auth(access_token)
         .header("User-Agent", "tripchive")
@@ -68,18 +84,12 @@ pub async fn fetch_user_info(
         .json::<GitHubUser>()
         .await?;
 
-    if user.email.is_none() {
-        let emails: Vec<GitHubEmail> = http_client
-            .get("https://api.github.com/user/emails")
-            .bearer_auth(access_token)
-            .header("User-Agent", "tripchive")
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        user.email = emails.into_iter().find(|e| e.primary).map(|e| e.email);
-    }
-
-    Ok(user)
+    Ok(GitHubUser {
+        email: if let email @ Some(_) = user.email {
+            email
+        } else {
+            fetch_primary_email(http_client, access_token).await?
+        },
+        ..user
+    })
 }

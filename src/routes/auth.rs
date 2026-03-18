@@ -4,14 +4,29 @@ use axum::{
     response::Redirect,
     routing::{get, post},
 };
+use axum_extra::extract::CookieJar;
 
 use crate::{
-    auth::{jwt, oauth, password},
+    auth::{
+        csrf,
+        jwt, oauth, password,
+    },
     config::SharedState,
     dto::auth::{LoginRequest, OAuthCallbackParams, RegisterRequest, TokenResponse},
     errors::{Result, auth::AuthError},
     models::user::User,
 };
+
+fn create_token_response(user_id: i64, state: &SharedState) -> Result<Json<TokenResponse>> {
+    let token = jwt::create_token(
+        user_id,
+        &state.config.jwt_secret,
+        state.config.jwt_expiration_hours,
+    )?;
+    Ok(Json(TokenResponse {
+        access_token: token,
+    }))
+}
 
 pub fn router() -> Router<SharedState> {
     Router::new()
@@ -38,15 +53,7 @@ async fn register(
 
     let hash = password::hash_password(&body.password)?;
     let user = User::create_email_user(&state.pool, &body.email, &hash).await?;
-    let token = jwt::create_token(
-        user.id,
-        &state.config.jwt_secret,
-        state.config.jwt_expiration_hours,
-    )?;
-
-    Ok(Json(TokenResponse {
-        access_token: token,
-    }))
+    create_token_response(user.id, &state)
 }
 
 async fn login(
@@ -66,28 +73,41 @@ async fn login(
         return Err(AuthError::InvalidCredentials.into());
     }
 
-    let token = jwt::create_token(
-        user.id,
-        &state.config.jwt_secret,
-        state.config.jwt_expiration_hours,
-    )?;
-
-    Ok(Json(TokenResponse {
-        access_token: token,
-    }))
+    create_token_response(user.id, &state)
 }
 
-async fn google_redirect(State(state): State<SharedState>) -> Result<Redirect> {
-    let client = oauth::google::build_client(&state.config.google)?;
-    let (url, _csrf_token) = oauth::google::get_authorize_url(&client);
+fn oauth_redirect(
+    jar: CookieJar,
+    url: &str,
+    csrf_token: &oauth2::CsrfToken,
+    secret: &str,
+) -> (CookieJar, Redirect) {
+    let cookie = csrf::create_csrf_cookie(csrf_token, secret);
+    (jar.add(cookie), Redirect::temporary(url))
+}
 
-    Ok(Redirect::temporary(&url))
+async fn google_redirect(
+    jar: CookieJar,
+    State(state): State<SharedState>,
+) -> Result<(CookieJar, Redirect)> {
+    let client = oauth::google::build_client(&state.config.google)?;
+    let (url, csrf_token) = oauth::google::get_authorize_url(&client);
+
+    Ok(oauth_redirect(
+        jar,
+        &url,
+        &csrf_token,
+        &state.config.jwt_secret,
+    ))
 }
 
 async fn google_callback(
+    jar: CookieJar,
     State(state): State<SharedState>,
     Query(params): Query<OAuthCallbackParams>,
 ) -> Result<Json<TokenResponse>> {
+    csrf::verify_csrf_cookie(&jar, &params.state, &state.config.jwt_secret)?;
+
     let client = oauth::google::build_client(&state.config.google)?;
     let access_token =
         oauth::google::exchange_code(&client, &state.http_client, params.code).await?;
@@ -100,28 +120,31 @@ async fn google_callback(
         Some(&google_user.email),
     )
     .await?;
-    let token = jwt::create_token(
-        user.id,
-        &state.config.jwt_secret,
-        state.config.jwt_expiration_hours,
-    )?;
-
-    Ok(Json(TokenResponse {
-        access_token: token,
-    }))
+    create_token_response(user.id, &state)
 }
 
-async fn github_redirect(State(state): State<SharedState>) -> Result<Redirect> {
+async fn github_redirect(
+    jar: CookieJar,
+    State(state): State<SharedState>,
+) -> Result<(CookieJar, Redirect)> {
     let client = oauth::github::build_client(&state.config.github)?;
-    let (url, _csrf_token) = oauth::github::get_authorize_url(&client);
+    let (url, csrf_token) = oauth::github::get_authorize_url(&client);
 
-    Ok(Redirect::temporary(&url))
+    Ok(oauth_redirect(
+        jar,
+        &url,
+        &csrf_token,
+        &state.config.jwt_secret,
+    ))
 }
 
 async fn github_callback(
+    jar: CookieJar,
     State(state): State<SharedState>,
     Query(params): Query<OAuthCallbackParams>,
 ) -> Result<Json<TokenResponse>> {
+    csrf::verify_csrf_cookie(&jar, &params.state, &state.config.jwt_secret)?;
+
     let client = oauth::github::build_client(&state.config.github)?;
     let access_token =
         oauth::github::exchange_code(&client, &state.http_client, params.code).await?;
@@ -134,28 +157,31 @@ async fn github_callback(
         github_user.email.as_deref(),
     )
     .await?;
-    let token = jwt::create_token(
-        user.id,
-        &state.config.jwt_secret,
-        state.config.jwt_expiration_hours,
-    )?;
-
-    Ok(Json(TokenResponse {
-        access_token: token,
-    }))
+    create_token_response(user.id, &state)
 }
 
-async fn apple_redirect(State(state): State<SharedState>) -> Result<Redirect> {
+async fn apple_redirect(
+    jar: CookieJar,
+    State(state): State<SharedState>,
+) -> Result<(CookieJar, Redirect)> {
     let client = oauth::apple::build_client(&state.config.apple)?;
-    let (url, _csrf_token) = oauth::apple::get_authorize_url(&client);
+    let (url, csrf_token) = oauth::apple::get_authorize_url(&client);
 
-    Ok(Redirect::temporary(&url))
+    Ok(oauth_redirect(
+        jar,
+        &url,
+        &csrf_token,
+        &state.config.jwt_secret,
+    ))
 }
 
 async fn apple_callback(
+    jar: CookieJar,
     State(state): State<SharedState>,
     axum::Form(params): axum::Form<OAuthCallbackParams>,
 ) -> Result<Json<TokenResponse>> {
+    csrf::verify_csrf_cookie(&jar, &params.state, &state.config.jwt_secret)?;
+
     let id_token =
         oauth::apple::exchange_code(&state.config.apple, &state.http_client, params.code).await?;
     let apple_user =
@@ -168,13 +194,5 @@ async fn apple_callback(
         apple_user.email.as_deref(),
     )
     .await?;
-    let token = jwt::create_token(
-        user.id,
-        &state.config.jwt_secret,
-        state.config.jwt_expiration_hours,
-    )?;
-
-    Ok(Json(TokenResponse {
-        access_token: token,
-    }))
+    create_token_response(user.id, &state)
 }

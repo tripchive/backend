@@ -2,6 +2,12 @@ use std::sync::Arc;
 
 use sqlx::PgPool;
 
+macro_rules! env {
+    ($key:expr) => {
+        std::env::var($key).expect(concat!($key, " must be set"))
+    };
+}
+
 pub struct GoogleConfig {
     pub client_id: String,
     pub client_secret: String,
@@ -34,34 +40,27 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Self {
         Self {
-            database_url: std::env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
-            jwt_secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set"),
-            jwt_expiration_hours: std::env::var("JWT_EXPIRATION_HOURS")
-                .unwrap_or_else(|_| "24".to_string())
+            database_url: env!("DATABASE_URL"),
+            jwt_secret: env!("JWT_SECRET"),
+            jwt_expiration_hours: env!("JWT_EXPIRATION_HOURS")
                 .parse()
                 .expect("JWT_EXPIRATION_HOURS must be a valid number"),
             google: GoogleConfig {
-                client_id: std::env::var("GOOGLE_CLIENT_ID").expect("GOOGLE_CLIENT_ID must be set"),
-                client_secret: std::env::var("GOOGLE_CLIENT_SECRET")
-                    .expect("GOOGLE_CLIENT_SECRET must be set"),
-                redirect_url: std::env::var("GOOGLE_REDIRECT_URL")
-                    .expect("GOOGLE_REDIRECT_URL must be set"),
+                client_id: env!("GOOGLE_CLIENT_ID"),
+                client_secret: env!("GOOGLE_CLIENT_SECRET"),
+                redirect_url: env!("GOOGLE_REDIRECT_URL"),
             },
             github: GitHubConfig {
-                client_id: std::env::var("GITHUB_CLIENT_ID").expect("GITHUB_CLIENT_ID must be set"),
-                client_secret: std::env::var("GITHUB_CLIENT_SECRET")
-                    .expect("GITHUB_CLIENT_SECRET must be set"),
-                redirect_url: std::env::var("GITHUB_REDIRECT_URL")
-                    .expect("GITHUB_REDIRECT_URL must be set"),
+                client_id: env!("GITHUB_CLIENT_ID"),
+                client_secret: env!("GITHUB_CLIENT_SECRET"),
+                redirect_url: env!("GITHUB_REDIRECT_URL"),
             },
             apple: AppleConfig {
-                client_id: std::env::var("APPLE_CLIENT_ID").expect("APPLE_CLIENT_ID must be set"),
-                team_id: std::env::var("APPLE_TEAM_ID").expect("APPLE_TEAM_ID must be set"),
-                key_id: std::env::var("APPLE_KEY_ID").expect("APPLE_KEY_ID must be set"),
-                private_key: std::env::var("APPLE_PRIVATE_KEY")
-                    .expect("APPLE_PRIVATE_KEY must be set"),
-                redirect_url: std::env::var("APPLE_REDIRECT_URL")
-                    .expect("APPLE_REDIRECT_URL must be set"),
+                client_id: env!("APPLE_CLIENT_ID"),
+                team_id: env!("APPLE_TEAM_ID"),
+                key_id: env!("APPLE_KEY_ID"),
+                private_key: env!("APPLE_PRIVATE_KEY"),
+                redirect_url: env!("APPLE_REDIRECT_URL"),
             },
         }
     }

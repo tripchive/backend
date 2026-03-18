@@ -25,7 +25,11 @@ tracing = "0.1.44"
 tracing-subscriber = "0.3.22"
 oauth2 = { version = "5.0.0", features = ["reqwest"] }
 reqwest = { version = "0.12", features = ["json"] }
-axum-extra = { version = "0.12.5", features = ["typed-header"] }
+axum-extra = { version = "0.12.5", features = ["typed-header", "cookie"] }
+cookie = "0.18"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
 
 [lints.clippy]
 multiple_crate_versions = "allow"

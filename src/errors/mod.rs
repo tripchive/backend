@@ -41,19 +41,14 @@ impl_internal_from!(
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match &self {
-            Self::Auth(err) => match err {
-                auth::AuthError::InvalidCredentials
-                | auth::AuthError::InvalidToken
-                | auth::AuthError::MissingToken => (StatusCode::UNAUTHORIZED, err.to_string()),
-                auth::AuthError::AccountAlreadyExists => (StatusCode::CONFLICT, err.to_string()),
-            },
+        let (status, message) = match self {
+            Self::Auth(err) => (err.status_code(), err.to_string()),
             Self::Internal(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "An internal server error occurred".into(),
+                "An internal server error occurred".to_string(),
             ),
         };
 
-        (status, Json(json!({ "error": error_message }))).into_response()
+        (status, Json(json!({ "error": message }))).into_response()
     }
 }
