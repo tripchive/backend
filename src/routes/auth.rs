@@ -7,10 +7,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 
 use crate::{
-    auth::{
-        csrf,
-        jwt, oauth, password,
-    },
+    auth::{csrf, jwt, oauth, password},
     config::SharedState,
     dto::auth::{LoginRequest, OAuthCallbackParams, RegisterRequest, TokenResponse},
     errors::{Result, auth::AuthError},
