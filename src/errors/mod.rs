@@ -37,6 +37,7 @@ impl_internal_from!(
     jsonwebtoken::errors::Error,
     oauth2::url::ParseError,
     reqwest::Error,
+    tokio::task::JoinError,
 );
 
 impl IntoResponse for AppError {

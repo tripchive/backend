@@ -48,7 +48,7 @@ async fn register(
         return Err(AuthError::AccountAlreadyExists.into());
     }
 
-    let hash = password::hash_password(&body.password)?;
+    let hash = tokio::task::spawn_blocking(move || password::hash_password(&body.password)).await??;
     let user = User::create_email_user(&state.pool, &body.email, &hash).await?;
     create_token_response(user.id, &state)
 }
